@@ -1,0 +1,31 @@
+# Git metadata
+.git
+.gitignore
+
+# Environment files and secrets
+.env
+.env.*
+!.env.example
+
+# Frontend dependencies and build output
+node_modules
+apps/web/node_modules
+apps/web/.next
+apps/web/out
+
+# Go and frontend build output
+bin
+dist
+*.exe
+*.test
+
+# Logs and temporary files
+*.log
+logs
+.tmp
+.cache
+
+# IDE files
+.vscode
+.idea
+.DS_Store

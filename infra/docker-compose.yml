@@ -1,0 +1,58 @@
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6380:6379"
+
+  orders:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile
+      args:
+        SERVICE: orders
+    ports:
+      - "8100:8100"
+    environment:
+      REDIS_ADDR: redis:6379
+    depends_on:
+      - redis
+
+  inventory:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile
+      args:
+        SERVICE: inventory
+    ports:
+      - "8101:8101"
+    environment:
+      REDIS_ADDR: redis:6379
+    depends_on:
+      - redis
+
+  payments:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile
+      args:
+        SERVICE: payments
+    ports:
+      - "8102:8102"
+    environment:
+      REDIS_ADDR: redis:6379
+      FAILURE_RATE: "0.0"
+    depends_on:
+      - redis
+
+  notifications:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile
+      args:
+        SERVICE: notifications
+    ports:
+      - "8103:8103"
+    environment:
+      REDIS_ADDR: redis:6379
+    depends_on:
+      - redis

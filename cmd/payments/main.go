@@ -1,0 +1,107 @@
+package main
+
+import (
+	"context"
+	"errors"
+	"log"
+	"net"
+	"net/http"
+	"os"
+	"os/signal"
+	"strconv"
+	"syscall"
+	"time"
+
+	"github.com/redis/go-redis/v9"
+
+	"github.com/Mitesh0007/orderflow-go/internal/payments"
+	"github.com/Mitesh0007/orderflow-go/pkg/events"
+)
+
+func getEnv(key, fallback string) string {
+	value := os.Getenv(key)
+	if value == "" {
+		return fallback
+	}
+	return value
+}
+
+func getEnvFloat(key string, fallback float64) float64 {
+	value := os.Getenv(key)
+	if value == "" {
+		return fallback
+	}
+	parsed, err := strconv.ParseFloat(value, 64)
+	if err != nil {
+		return fallback
+	}
+	return parsed
+}
+
+const consumerGroup = "payments-service"
+
+func main() {
+	ctx, stop := signal.NotifyContext(
+		context.Background(),
+		os.Interrupt,
+		syscall.SIGTERM,
+	)
+	defer stop()
+
+	redisAddr := getEnv("REDIS_ADDR", "redis://localhost:6379")
+	failureRate := getEnvFloat("FAILURE_RATE", 0.0)
+
+	redisOptions, err := redis.ParseURL(redisAddr)
+	if err != nil {
+		log.Fatalf("invalid Redis address: %v", err)
+	}
+
+	redisClient := redis.NewClient(redisOptions)
+	defer redisClient.Close()
+
+	if err := redisClient.Ping(ctx).Err(); err != nil {
+		log.Fatalf("redis connection failed at %s: %v", redisAddr, err)
+	}
+
+	publisher := events.NewPublisher(redisClient)
+	handler := payments.NewHandler(publisher, failureRate)
+
+	consumer := events.NewConsumer(
+		redisClient,
+		events.StreamStockReserved,
+		consumerGroup,
+		"payments-1",
+	)
+
+	if err := consumer.EnsureGroup(ctx); err != nil {
+		log.Fatal(err)
+	}
+	go consumer.Run(ctx, handler.OnStockReserved)
+
+	port := getEnv("PORT", "8102")
+	server := &http.Server{
+		Addr:    ":" + port,
+		Handler: handler.Routes(),
+		BaseContext: func(_ net.Listener) context.Context {
+			return ctx
+		},
+	}
+
+	go func() {
+		log.Printf("payments (mock) service listening on :%s", port)
+		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Printf("server error: %v", err)
+			stop()
+		}
+	}()
+
+	<-ctx.Done()
+	log.Println("shutdown signal received")
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := server.Shutdown(shutdownCtx); err != nil {
+		log.Printf("server shutdown failed: %v", err)
+	}
+	log.Println("payments service stopped")
+}

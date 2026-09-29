@@ -1,0 +1,39 @@
+# Environment files and secrets
+.env
+.env.*
+!.env.example
+
+# Go build output
+/bin/
+/dist/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Go test and coverage output
+*.test
+*.out
+coverage.out
+coverage.html
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Node and Next.js
+node_modules/
+apps/web/node_modules/
+apps/web/.next/
+apps/web/out/
+
+# Logs
+*.log
+logs/
+
+# Local Docker and tooling files
+docker-compose.override.yml
